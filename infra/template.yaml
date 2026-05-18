@@ -1,0 +1,113 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Java Serverless API Project
+
+Resources:
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+
+    Properties:
+      RoleName: java-serverless-api-lambda-role
+
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+
+        Statement:
+          - Effect: Allow
+
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+
+            Action:
+              - sts:AssumeRole
+
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  TasksLambda:
+    Type: AWS::Lambda::Function
+
+    Properties:
+      FunctionName: tasks-java-lambda
+
+      Runtime: java21
+
+      Handler: com.example.Handler::handleRequest
+
+      Role: !GetAtt LambdaExecutionRole.Arn
+
+      MemorySize: 512
+
+      Timeout: 30
+
+      Code:
+        S3Bucket: java-serverless-api-braulio
+        S3Key: tasks-lambda-1.0.jar
+
+  TasksApi:
+    Type: AWS::ApiGateway::RestApi
+
+    Properties:
+      Name: TasksApi
+
+  TasksResource:
+    Type: AWS::ApiGateway::Resource
+
+    Properties:
+      ParentId: !GetAtt TasksApi.RootResourceId
+      PathPart: tasks
+      RestApiId: !Ref TasksApi
+
+  GetTasksMethod:
+    Type: AWS::ApiGateway::Method
+
+    Properties:
+      HttpMethod: GET
+
+      AuthorizationType: NONE
+
+      ResourceId: !Ref TasksResource
+
+      RestApiId: !Ref TasksApi
+
+      Integration:
+        Type: AWS_PROXY
+
+        IntegrationHttpMethod: POST
+
+        Uri: !Sub >
+          arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TasksLambda.Arn}/invocations
+
+  LambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+
+    Properties:
+      Action: lambda:InvokeFunction
+
+      FunctionName: !Ref TasksLambda
+
+      Principal: apigateway.amazonaws.com
+
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+
+    DependsOn:
+      - GetTasksMethod
+
+    Properties:
+      RestApiId: !Ref TasksApi
+      StageName: prod
+
+Outputs:
+
+  ApiUrl:
+    Description: API Gateway endpoint URL
+
+    Value: !Sub >
+      https://${TasksApi}.execute-api.${AWS::Region}.amazonaws.com/prod/tasks
+
+  LambdaName:
+    Description: Lambda Function Name
+
+    Value: !Ref TasksLambda

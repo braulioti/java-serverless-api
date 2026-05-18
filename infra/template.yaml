@@ -1,4 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
+
 Description: Java Serverless API Project
 
 Resources:
@@ -7,8 +8,6 @@ Resources:
     Type: AWS::IAM::Role
 
     Properties:
-      RoleName: java-serverless-api-lambda-role
-
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
 
@@ -51,35 +50,34 @@ Resources:
     Properties:
       Name: TasksApi
 
-  TasksResource:
+  TasksApiResource:
     Type: AWS::ApiGateway::Resource
 
     Properties:
-      ParentId: !GetAtt TasksApi.RootResourceId
-      PathPart: tasks
       RestApiId: !Ref TasksApi
 
-  GetTasksMethod:
+      ParentId: !GetAtt TasksApi.RootResourceId
+
+      PathPart: tasks
+
+  TasksApiMethod:
     Type: AWS::ApiGateway::Method
 
     Properties:
+      RestApiId: !Ref TasksApi
+
+      ResourceId: !Ref TasksApiResource
+
       HttpMethod: GET
 
       AuthorizationType: NONE
 
-      ResourceId: !Ref TasksResource
-
-      RestApiId: !Ref TasksApi
-
       Integration:
         Type: AWS_PROXY
-
         IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TasksLambda.Arn}/invocations'
 
-        Uri: !Sub >
-          arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${TasksLambda.Arn}/invocations
-
-  LambdaInvokePermission:
+  LambdaApiPermission:
     Type: AWS::Lambda::Permission
 
     Properties:
@@ -88,31 +86,21 @@ Resources:
       FunctionName: !Ref TasksLambda
 
       Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${TasksApi}/*/*/*'
 
   ApiDeployment:
     Type: AWS::ApiGateway::Deployment
 
     DependsOn:
-      - GetTasksMethod
+      - TasksApiMethod
 
     Properties:
       RestApiId: !Ref TasksApi
+
       StageName: prod
 
 Outputs:
 
   ApiUrl:
-    Description: API Gateway endpoint URL
-
     Value: !Sub >
       https://${TasksApi}.execute-api.${AWS::Region}.amazonaws.com/prod/tasks
-
-  LambdaName:
-    Description: Lambda Function Name
-
-    Value: !Ref TasksLambda
-
-  ApiId:
-    Description: API Gateway ID
-
-    Value: !Ref TasksApi

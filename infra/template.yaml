@@ -111,3 +111,8 @@ Outputs:
     Description: Lambda Function Name
 
     Value: !Ref TasksLambda
+
+  ApiId:
+    Description: API Gateway ID
+
+    Value: !Ref TasksApi
